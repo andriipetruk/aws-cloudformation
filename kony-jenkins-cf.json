@@ -1,0 +1,458 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Parameters": {
+    "EnvironmentSize": {
+      "Type": "String",
+      "Default": "Standart",
+      "AllowedValues": [
+        "Standart",
+        "Pro"],
+      "Description": "Select Environment Size"
+    },
+ "KeyName": {
+      "Description" : "Name of an existing EC2 KeyPair to enable SSH access to the instance",
+      "Type": "AWS::EC2::KeyPair::KeyName",
+      "Default" : "bbt-default"
+  }
+},
+  "Mappings": {
+    "RegionMap": {
+      "us-east-1": {
+        "KONYLINUXAGENT": "ami-c481fad3",
+        "KONYWINDOWSAGENT": "ami-c481fad3",
+        "KONYJENKINSMASTER": "ami-c481fad3"
+      },
+      "us-east-2": {
+        "KONYLINUXAGENT": "ami-71ca9114",
+        "KONYWINDOWSAGENT": "ami-71ca9114",
+        "KONYJENKINSMASTER": "ami-71ca9114"
+      },
+      "us-west-1": {
+        "KONYLINUXAGENT": "ami-c6bbe7a6",
+        "KONYWINDOWSAGENT": "ami-99bbe7f9",
+        "KONYJENKINSMASTER": "ami-41b5e921"
+      },
+      "us-west-2": {
+        "KONYLINUXAGENT": "ami-b04e92d0",
+        "KONYWINDOWSAGENT": "ami-b04e92d0",
+        "KONYJENKINSMASTER": "ami-b04e92d0"
+      },
+      "ca-central-1" : {
+        "KONYLINUXAGENT" : "ami-eb20928f",
+        "KONYWINDOWSAGENT" : "ami-eb20928f",
+        "KONYJENKINSMASTER" : "ami-eb20928f"
+      },
+      "eu-west-1": {
+        "KONYLINUXAGENT": "ami-c6bbe7a6",
+        "KONYWINDOWSAGENT": "ami-99bbe7f9",
+        "KONYJENKINSMASTER": "ami-aeb8e4ce"
+      },
+      "eu-central-1": {
+        "KONYLINUXAGENT": "ami-0044b96f",
+        "KONYWINDOWSAGENT": "ami-0044b96f",
+        "KONYJENKINSMASTER": "ami-0044b96f"
+      },
+      "eu-west-2" : {
+        "KONYLINUXAGENT" : "ami-bfe0eadb",
+        "KONYWINDOWSAGENT" : "ami-bfe0eadb",
+        "KONYJENKINSMASTER" : "ami-bfe0eadb"
+      },
+      "ap-southeast-1": {
+        "KONYLINUXAGENT": "ami-7243e611",
+        "KONYWINDOWSAGENT": "ami-7243e611",
+        "KONYJENKINSMASTER": "ami-7243e611"
+      },
+      "ap-southeast-2": {
+        "KONYLINUXAGENT": "ami-55d4e436",
+        "KONYWINDOWSAGENT": "ami-55d4e436",
+        "KONYJENKINSMASTER": "ami-55d4e436"
+      },
+      "ap-northeast-2": {
+        "KONYLINUXAGENT": "ami-a04297ce",
+        "KONYWINDOWSAGENT": "ami-a04297ce",
+        "KONYJENKINSMASTER": "ami-a04297ce"
+      },
+      "ap-northeast-1": {
+        "KONYLINUXAGENT": "ami-1a15c77b",
+        "KONYWINDOWSAGENT": "ami-1a15c77b",
+        "KONYJENKINSMASTER": "ami-1a15c77b"
+      },
+      "ap-south-1": {
+        "KONYLINUXAGENT": "ami-cacbbea5",
+        "KONYWINDOWSAGENT": "ami-cacbbea5",
+        "KONYJENKINSMASTER": "ami-cacbbea5"
+      },
+      "sa-east-1": {
+        "KONYLINUXAGENT": "ami-b777e4db",
+        "KONYWINDOWSAGENT": "ami-b777e4db",
+        "KONYJENKINSMASTER": "ami-b777e4db"
+      }
+    },
+    "InstanceSize": {
+      "Standart": {
+        "EC2": "m4.large"
+      },
+      "Pro": {
+        "EC2": "m4.xlarge"
+      } 
+    }
+  },
+  "Resources": {
+    "vpc": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": "10.0.0.0/27",
+        "InstanceTenancy": "default",
+        "EnableDnsSupport": "true",
+        "EnableDnsHostnames": "false",
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "konyappfactory"
+          }
+        ]
+      }
+    },
+    "subnetpublic": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "10.0.0.0/28",
+        "MapPublicIpOnLaunch" : "true",
+        "AvailabilityZone": {"Fn::Select" : ["1", {"Fn::GetAZs" : ""}]},
+        "VpcId": { "Ref": "vpc" },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "public"
+          }
+        ]
+      }
+    },
+    "subnetprivate": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "10.0.0.16/28",
+        "AvailabilityZone": {"Fn::Select" : ["1", {"Fn::GetAZs" : ""}]},
+        "VpcId": { "Ref": "vpc" },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "private"
+          }
+        ]
+      }
+    },
+    "RouteTablePrivateA": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": { "Ref": "vpc" }
+      }
+    },
+    "RouteTablePrivateB": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": { "Ref": "vpc" }
+      }
+    },
+    "RouteTablePublic": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": { "Ref": "vpc" }
+      }
+    },
+    "SubnetRouteTableAssociationPrivate": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "RouteTablePrivateA"
+        },
+        "SubnetId": {
+          "Ref": "subnetprivate"
+        }
+      }
+    },
+    "SubnetRouteTableAssociationPublic": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "RouteTablePublic"
+        },
+        "SubnetId": {
+          "Ref": "subnetpublic"
+        }
+      }
+    },
+    "RouteDefaultPrivate": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "NatGatewayId" : { "Ref" : "NatGateway" },
+        "RouteTableId": {
+          "Ref": "RouteTablePrivateA"
+        }
+      }
+    },
+    "RouteDefaultPublic": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "RouteTableId": {
+          "Ref": "RouteTablePublic"
+        },
+        "GatewayId": {
+          "Ref": "IGW"
+        }
+      },
+      "DependsOn": "IGW"
+    },
+    "IGW": {
+      "Type": "AWS::EC2::InternetGateway",
+      "Properties": {}
+    },
+    "GatewayAttach": {
+      "Type": "AWS::EC2::VPCGatewayAttachment",
+      "Properties": {
+        "VpcId": {
+          "Ref": "vpc"
+        },
+        "InternetGatewayId": {
+          "Ref": "IGW"
+        }
+      }
+    },
+    "EIPNatGW": {
+      "Type": "AWS::EC2::EIP",
+      "Properties": {
+        "Domain": "vpc"
+      }
+    },
+    "NatGateway" : {
+      "Type" : "AWS::EC2::NatGateway",
+      "Properties" : {
+      "AllocationId" : {"Fn::GetAtt" : ["EIPNatGW","AllocationId"]},
+      "SubnetId" : {"Ref" : "subnetprivate"}
+      }
+    },
+    "ACL": {
+      "Type": "AWS::EC2::NetworkAcl",
+      "Properties": {
+        "VpcId": {
+          "Ref": "vpc"
+        }
+      }
+    },
+    "ACLcfg1": {
+      "Type": "AWS::EC2::NetworkAclEntry",
+      "Properties": {
+        "CidrBlock": "0.0.0.0/0",
+        "Egress": "true",
+        "Protocol": "-1",
+        "RuleAction": "allow",
+        "RuleNumber": "100",
+        "NetworkAclId": { "Ref": "ACL" }
+      }
+    },
+    "ACLcfg2": {
+      "Type": "AWS::EC2::NetworkAclEntry",
+      "Properties": {
+        "CidrBlock": "0.0.0.0/0",
+        "Protocol": "-1",
+        "RuleAction": "allow",
+        "RuleNumber": "100",
+        "NetworkAclId": { "Ref": "ACL" }
+      }
+    },
+    "SubnetPrivateACL": {
+      "Type": "AWS::EC2::SubnetNetworkAclAssociation",
+      "Properties": {
+        "NetworkAclId": { "Ref": "ACL" },
+        "SubnetId": { "Ref": "subnetprivate" }
+      }
+    },
+    "SubnetPublicACL": {
+      "Type": "AWS::EC2::SubnetNetworkAclAssociation",
+      "Properties": {
+        "NetworkAclId": { "Ref": "ACL" },
+        "SubnetId": {"Ref": "subnetpublic" }
+      }
+    },
+    "sgJenkinsMaster": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Jenkins Master",
+        "VpcId": {"Ref": "vpc"},
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "Jenkins-Master"
+          }
+        ],
+        "SecurityGroupIngress" : [
+          { "IpProtocol" : "tcp", "FromPort" : "80",  "ToPort" : "80", "CidrIp": "10.0.0.0/27" },
+          { "IpProtocol" : "tcp", "FromPort" : "8080",  "ToPort" : "8080", "CidrIp": "10.0.0.0/27" },
+          { "IpProtocol" : "tcp", "FromPort" : "443",  "ToPort" : "443", "CidrIp": "10.0.0.0/27" },
+          { "IpProtocol" : "tcp", "FromPort" : "22",  "ToPort" : "22", "CidrIp": "10.0.0.0/27" },
+          { "IpProtocol" : "tcp", "FromPort" : "9080",  "ToPort" : "9080", "CidrIp": "10.0.0.0/27" },
+          { "IpProtocol" : "tcp", "FromPort" : "3389",  "ToPort" : "3389", "CidrIp": "10.0.0.0/27" },
+          { "IpProtocol" : "tcp", "FromPort" : "22",  "ToPort" : "22",  "CidrIp": "193.239.254.132/32" },
+          { "IpProtocol" : "tcp", "FromPort" : "80",  "ToPort" : "80",  "CidrIp": "193.239.254.132/32" }
+        ],
+        "SecurityGroupEgress" : [
+          { "IpProtocol" : "-1", "CidrIp": "0.0.0.0/0" }
+        ]
+      }
+    },
+    "sgJenkinsSlave": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Jenkins Slave",
+        "VpcId": {"Ref": "vpc"},
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "Jenkins-Slave"
+          }
+        ],
+        "SecurityGroupIngress" : [
+          { "IpProtocol" : "tcp", "FromPort" : "80",  "ToPort" : "80", "CidrIp": "10.0.0.0/27" },
+          { "IpProtocol" : "tcp", "FromPort" : "443",  "ToPort" : "443", "CidrIp": "10.0.0.0/27" },
+          { "IpProtocol" : "tcp", "FromPort" : "22",  "ToPort" : "22", "CidrIp": "10.0.0.0/27" },
+          { "IpProtocol" : "tcp", "FromPort" : "3389",  "ToPort" : "3389", "CidrIp": "10.0.0.0/27" }          
+        ],
+        "SecurityGroupEgress" : [
+          { "IpProtocol" : "-1", "CidrIp": "0.0.0.0/0" }
+        ]
+      }
+    },
+"RoleJenkins": {
+       "Type": "AWS::IAM::Role",
+       "Properties": {
+          "AssumeRolePolicyDocument": {
+             "Version" : "2012-10-17",
+             "Statement": [ {
+                "Effect": "Allow",
+                "Principal": {
+                   "Service": [ "ec2.amazonaws.com" ]
+                },
+                "Action": [ "sts:AssumeRole" ]
+             } ]
+          },
+          "Path": "/"
+       }
+    },
+ "PolicyEC2Permissions" : {
+      "Type" : "AWS::IAM::Policy",
+      "Properties" : {
+        "PolicyName" : "Jenkins-EC2-Instance-Permissions",
+        "PolicyDocument" : {
+          "Statement": [{
+            "Effect": "Allow",
+            "Action": [ "*" ],
+            "Action": [
+              "s3:*",
+              "iam:GenerateCredentialReport",
+              "iam:GenerateServiceLastAccessedDetails",
+              "iam:Get*",
+              "iam:List*",
+              "devicefarm:*"
+            ],
+            "Resource": "*"
+          }]
+        },
+        "Roles": [{ "Ref" : "RoleJenkins" }]
+      }
+    },
+    "IAMInstanceProfile": {  
+      "Type": "AWS::IAM::InstanceProfile",  
+      "Properties": {
+        "Path": "/", 
+        "Roles": [ { "Ref": "RoleJenkins" } ]
+      }
+    },
+    "PlacementGroup" : {
+      "Type" : "AWS::EC2::PlacementGroup",
+      "Properties" : {
+        "Strategy" : "cluster"
+      }
+    },
+    "jenkinswinagent": {
+      "Type": "AWS::EC2::Instance",
+      "DependsOn" : [
+                "IAMInstanceProfile"
+            ],
+      "Properties": {
+        "DisableApiTermination": "false",
+        "InstanceInitiatedShutdownBehavior": "stop",
+        "AvailabilityZone": {"Fn::Select" : ["1", {"Fn::GetAZs" : ""}]},
+        "IamInstanceProfile": {"Ref": "IAMInstanceProfile" },
+        "ImageId": {"Fn::FindInMap" : ["RegionMap", {"Ref" : "AWS::Region"}, "KONYWINDOWSAGENT"]},
+        "InstanceType": {"Fn::FindInMap" : ["InstanceSize", {"Ref" : "EnvironmentSize"}, "EC2"]},
+        "KeyName": {"Ref" : "KeyName"},
+        "SecurityGroupIds": [ { "Ref" : "sgJenkinsSlave" } ],
+        "SubnetId" : {"Ref" : "subnetprivate"},
+        "Monitoring": "false",
+        "PlacementGroupName": {"Ref" : "PlacementGroup"},
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "JenkinsWinAgent"
+          }
+        ]
+      }
+    },
+    "jenkinslinuxagent": {
+      "Type": "AWS::EC2::Instance",
+      "DependsOn" : [
+                "IAMInstanceProfile"
+            ],
+      "Properties": {
+        "DisableApiTermination": "false",
+        "InstanceInitiatedShutdownBehavior": "stop",
+        "AvailabilityZone": {"Fn::Select" : ["1", {"Fn::GetAZs" : ""}]},
+        "IamInstanceProfile": {"Ref": "IAMInstanceProfile" },
+        "ImageId": {"Fn::FindInMap" : ["RegionMap", {"Ref" : "AWS::Region"}, "KONYLINUXAGENT"]},
+        "InstanceType": {"Fn::FindInMap" : ["InstanceSize", {"Ref" : "EnvironmentSize"}, "EC2"]},
+        "KeyName": {"Ref" : "KeyName"},
+        "SecurityGroupIds":  [ { "Ref" : "sgJenkinsSlave" } ],
+        "SubnetId" : {"Ref" : "subnetprivate"},
+        "Monitoring": "false",
+        "PlacementGroupName": {"Ref" : "PlacementGroup"},
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "JenkinsLinuxAgent"
+          }
+        ]
+      }
+    },
+    "jenkinsmaster": {
+      "Type": "AWS::EC2::Instance",
+      "DependsOn" : [
+                "IAMInstanceProfile"
+            ],
+      "Properties": {
+        "DisableApiTermination": "false",
+        "InstanceInitiatedShutdownBehavior": "stop",
+        "AvailabilityZone": {"Fn::Select" : ["1", {"Fn::GetAZs" : ""}]},
+        "IamInstanceProfile": {"Ref": "IAMInstanceProfile" },
+        "ImageId": {"Fn::FindInMap" : ["RegionMap", {"Ref" : "AWS::Region"}, "KONYJENKINSMASTER"]},
+        "InstanceType": {"Fn::FindInMap" : ["InstanceSize", {"Ref" : "EnvironmentSize"}, "EC2"]},
+        "KeyName": {"Ref" : "KeyName"},
+        "SecurityGroupIds": [ { "Ref" : "sgJenkinsMaster" } ],
+        "SubnetId" : {"Ref" : "subnetpublic"},
+        "Monitoring": "false",
+        "PlacementGroupName": {"Ref" : "PlacementGroup"},
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "JenkinsMaster"
+          }
+        ]
+      }
+    },
+    "s3": {
+      "Type": "AWS::S3::Bucket"
+    }
+  },
+  "Description": "kony template"
+}
